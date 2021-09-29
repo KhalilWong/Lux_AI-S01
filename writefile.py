@@ -101,9 +101,8 @@ def agent(observation, configuration):
                     action = unit.move(unit.pos.direction_to(closest_resource_tile.pos))
                     actions.append(action)
             else:
-                builded = False
                 if len(player.units) >= len(player.cities):
-                    closest_empty_tile = find_closest_emptys(unit.pos, empty_tiles)
+                    closest_empty_tile = find_closest_empties(unit.pos, empty_tiles)
                     if closest_empty_tile is not None:
                         dist = closest_empty_tile.pos.distance_to(unit.pos)
                         if dist > 0:
@@ -112,16 +111,21 @@ def agent(observation, configuration):
                         else:
                             action = unit.build_city()
                             actions.append(action)
-                            builded = True
-                if not builded:
+                else:
                     closest_city_tile = find_closest_city_tile(unit.pos, player)
                     if closest_city_tile is not None:
                         action = unit.move(unit.pos.direction_to(closest_city_tile.pos))
                         actions.append(action)
     # 城市动作
-    if len(player.cities) > len(player.cities):
-        for k, city in player.cities.items():
-            for city_tile in city.citytiles:
-                if city_tile.can_act():
-                    actions.append(city_tile.research())
+    n_city = len(player.cities)
+    n_unit = len(player.units)
+    for k, city in player.cities.items():
+        need = city.light_upkeep - city.fuel
+        for city_tile in city.citytiles:
+            if need > 0 and n_city > n_unit:
+                actions.append(city_tile.build_worker())
+                n_unit += 1
+                need -= 4
+            else:
+                actions.append(city_tile.research())
     return actions
