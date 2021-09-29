@@ -31,18 +31,24 @@ def find_empties(game_state):
     return empty_tiles
 
 ################################################################################
-def find_closest_empties(pos, empty_tiles):
+def find_closest_empties(pos, empty_tiles, unit_dir):
+    closest_st = ''
     closest_dist = math.inf
     closest_empty_tile = None
     for empty_tile in empty_tiles:
         dist = empty_tile.pos.distance_to(pos)
+        st = '({}, {})'.format(empty_tile.pos.x, empty_tile.pos.y)
+        if st in unit_dir and dist == unit_dir[st]:
+            continue
         if dist < closest_dist:
+            closest_st = st
             closest_dist = dist
             closest_empty_tile = empty_tile
-    return closest_empty_tile
+    return closest_empty_tile, closest_dist, closest_st
 
 ################################################################################
-def find_closest_resources(pos, player, resource_tiles):
+def find_closest_resources(pos, player, resource_tiles, unit_dir):
+    closest_st = ''
     closest_dist = math.inf
     closest_resource_tile = None
     for resource_tile in resource_tiles:
@@ -51,10 +57,14 @@ def find_closest_resources(pos, player, resource_tiles):
         if resource_tile.resource.type == Constants.RESOURCE_TYPES.URANIUM and not player.researched_uranium():
             continue
         dist = resource_tile.pos.distance_to(pos)
+        st = '({}, {})'.format(resource_tile.pos.x, resource_tile.pos.y)
+        if st in unit_dir and dist == unit_dir[st]:
+            continue
         if dist < closest_dist:
+            closest_st = st
             closest_dist = dist
             closest_resource_tile = resource_tile
-    return closest_resource_tile
+    return closest_resource_tile, closest_dist, closest_st
 
 ################################################################################
 def find_closest_city_tile(pos, player):
@@ -92,40 +102,43 @@ def agent(observation, configuration):
     #
     resource_tiles = find_resources(game_state)
     empty_tiles = find_empties(game_state)
+    unit_dir = {}
     # 单位动作
     for unit in player.units:
         if unit.is_worker() and unit.can_act():
-            if unit.get_cargo_space_left() > 0:
-                closest_resource_tile = find_closest_resources(unit.pos, player, resource_tiles)
+            if unit.get_cargo_space_left() > 0:                                 # 背包未满
+                closest_resource_tile, closest_dist, closest_st = find_closest_resources(unit.pos, player, resource_tiles, unit_dir)
                 if closest_resource_tile is not None:
                     action = unit.move(unit.pos.direction_to(closest_resource_tile.pos))
                     actions.append(action)
-            else:
-                if len(player.units) >= len(player.cities):
-                    closest_empty_tile = find_closest_empties(unit.pos, empty_tiles)
+                    unit_dir[closest_st] = closest_dist
+            else:                                                               # 背包满了
+                if len(player.units) >= player.city_tile_count:                 # 建城
+                    closest_empty_tile, closest_dist, closest_st = find_closest_empties(unit.pos, empty_tiles, unit_dir)
                     if closest_empty_tile is not None:
-                        dist = closest_empty_tile.pos.distance_to(unit.pos)
-                        if dist > 0:
+                        if closest_dist > 0:
                             action = unit.move(unit.pos.direction_to(closest_empty_tile.pos))
                             actions.append(action)
+                            unit_dir[closest_st] = closest_dist
                         else:
                             action = unit.build_city()
                             actions.append(action)
-                else:
+                else:                                                           # 回城
                     closest_city_tile = find_closest_city_tile(unit.pos, player)
                     if closest_city_tile is not None:
                         action = unit.move(unit.pos.direction_to(closest_city_tile.pos))
                         actions.append(action)
     # 城市动作
-    n_city = len(player.cities)
+    n_city = player.city_tile_count
     n_unit = len(player.units)
     for k, city in player.cities.items():
         need = city.light_upkeep - city.fuel
         for city_tile in city.citytiles:
-            if need > 0 and n_city > n_unit:
-                actions.append(city_tile.build_worker())
-                n_unit += 1
-                need -= 4
-            else:
-                actions.append(city_tile.research())
+            if city_tile.can_act():
+                if need > 0 and n_city > n_unit:
+                    actions.append(city_tile.build_worker())
+                    n_unit += 1
+                    need -= 4
+                else:
+                    actions.append(city_tile.research())
     return actions
