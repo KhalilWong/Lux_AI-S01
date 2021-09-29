@@ -103,6 +103,8 @@ def agent(observation, configuration):
     resource_tiles = find_resources(game_state)
     empty_tiles = find_empties(game_state)
     unit_dir = {}
+    n_city = player.city_tile_count
+    n_unit = len(player.units)
     # 单位动作
     for unit in player.units:
         if unit.is_worker() and unit.can_act():
@@ -113,7 +115,7 @@ def agent(observation, configuration):
                     actions.append(action)
                     unit_dir[closest_st] = closest_dist
             else:                                                               # 背包满了
-                if len(player.units) >= player.city_tile_count:                 # 建城
+                if len(player.units) >= n_city:                 # 建城
                     closest_empty_tile, closest_dist, closest_st = find_closest_empties(unit.pos, empty_tiles, unit_dir)
                     if closest_empty_tile is not None:
                         if closest_dist > 0:
@@ -129,8 +131,6 @@ def agent(observation, configuration):
                         action = unit.move(unit.pos.direction_to(closest_city_tile.pos))
                         actions.append(action)
     # 城市动作
-    n_city = player.city_tile_count
-    n_unit = len(player.units)
     for k, city in player.cities.items():
         need = city.light_upkeep - city.fuel
         for city_tile in city.citytiles:
